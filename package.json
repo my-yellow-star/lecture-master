@@ -9,9 +9,13 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@firebase/firestore": "^4.7.10",
+    "@firebase/storage": "^0.13.7",
     "@pdf-lib/fontkit": "^1.1.1",
     "@react-pdf/renderer": "^4.3.0",
+    "firebase": "^11.5.0",
     "next": "15.2.4",
+    "next-auth": "^4.24.11",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.0.375",
     "react": "^19.0.0",
