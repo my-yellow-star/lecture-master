@@ -6,6 +6,7 @@ import "react-pdf/dist/esm/Page/TextLayer.css";
 import { useState, useRef } from "react";
 import { Note } from "@/types";
 import { savePDF } from "@/utils/pdfGenerator";
+import { extractText } from "@/utils/textExtractor";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -14,11 +15,10 @@ interface PDFViewerProps {
   currentPage: number;
   numPages: number | null;
   totalPages: number;
-  extractedText: { [key: number]: string };
   onDocumentLoadSuccess: ({ numPages }: { numPages: number }) => void;
   onPageChange: (newPage: number) => void;
-  isLoading: boolean;
   fileName: string;
+  pdfFile: File | null;
 }
 
 export default function PDFViewer({
@@ -26,11 +26,10 @@ export default function PDFViewer({
   currentPage,
   numPages,
   totalPages,
-  extractedText,
   onDocumentLoadSuccess,
   onPageChange,
-  isLoading,
   fileName,
+  pdfFile,
 }: PDFViewerProps) {
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -40,7 +39,30 @@ export default function PDFViewer({
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
   const [wasDragging, setWasDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [extractedText, setExtractedText] = useState<{ [key: number]: string }>(
+    {}
+  );
+  const [isLoading, setIsLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleExtractText = async () => {
+    if (!confirm("텍스트를 추출하시겠습니까?")) return;
+    if (!pdfFile) {
+      console.warn("pdf file not exists");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { numPages, pageTexts } = await extractText(pdfFile);
+      onDocumentLoadSuccess({ numPages });
+      setExtractedText(pageTexts);
+    } catch (error) {
+      console.error("텍스트 추출 중 오류가 발생했습니다:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handlePageClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!isNoteMode || selectedNote || isDragging || wasDragging) return;
@@ -153,8 +175,8 @@ export default function PDFViewer({
   };
 
   return (
-    <div className="flex-1 flex gap-4 h-[calc(100vh-8rem)]">
-      <div className="w-48 shrink-0 border dark:border-gray-700 rounded-lg p-2 overflow-y-auto bg-white dark:bg-gray-800">
+    <div className="flex-1 flex flex-col lg:flex-row gap-4 h-[calc(100vh-8rem)]">
+      <div className="lg:w-48 shrink-0 border border-blue-100 dark:border-gray-700 rounded-lg p-2 overflow-y-auto bg-white dark:bg-gray-800 scrollbar-custom">
         <Document
           file={pdfUrl}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -163,10 +185,10 @@ export default function PDFViewer({
           {Array.from(new Array(numPages || totalPages), (_, index) => (
             <div
               key={`page_${index + 1}`}
-              className={`cursor-pointer border rounded p-1 ${
+              className={`cursor-pointer border border-blue-100 dark:border-gray-700 rounded p-1 ${
                 currentPage === index + 1
                   ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                  : "border-gray-200 dark:border-gray-700"
+                  : "border-blue-100 dark:border-gray-700"
               } relative`}
               onClick={() => onPageChange(index + 1)}
             >
@@ -185,8 +207,8 @@ export default function PDFViewer({
           ))}
         </Document>
       </div>
-      <div className="flex-1 border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="flex-1 border border-blue-100 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
+        <div className="mb-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <button
               onClick={() => onPageChange(currentPage - 1)}
@@ -252,7 +274,7 @@ export default function PDFViewer({
           <Document
             file={pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
-            className="flex flex-col border rounded-lg items-center bg-gray-50 dark:bg-gray-900"
+            className="flex flex-col border border-blue-100 dark:border-gray-700 rounded-lg items-center bg-gray-50 dark:bg-gray-900"
             loading={
               <div className="flex justify-center items-center h-full">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -261,7 +283,7 @@ export default function PDFViewer({
           >
             <div
               ref={containerRef}
-              className="relative"
+              className="relative w-full"
               onClick={handlePageClick}
               onMouseMove={handleDragMove}
               onMouseUp={handleDragEnd}
@@ -278,16 +300,16 @@ export default function PDFViewer({
             >
               <Page
                 pageNumber={currentPage}
-                width={800}
-                renderTextLayer={true}
-                renderAnnotationLayer={true}
+                width={Math.min(800, window.innerWidth * 0.8)}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
               />
               {notes
                 .filter((note) => note.page === currentPage)
                 .map((note, index) => (
                   <div
                     key={note.id}
-                    className={`absolute w-6 h-6 z-40 bg-yellow-300 rounded-full group flex items-center justify-center text-xs font-bold ${
+                    className={`absolute w-6 h-6 z-40 bg-yellow-300 dark:bg-yellow-500 rounded-full group flex items-center justify-center text-xs font-bold ${
                       draggedNoteId === note.id
                         ? "ring-2 ring-blue-500"
                         : isNoteMode
@@ -313,8 +335,8 @@ export default function PDFViewer({
                     }}
                   >
                     {index + 1}
-                    <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-white p-2 rounded shadow-lg border text-sm w-64 z-50">
-                      <div className="text-xs text-gray-500 mb-1">
+                    <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-white dark:bg-gray-800 p-2 rounded shadow-lg border dark:border-gray-700 text-sm w-64 z-50">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                         {new Date(parseInt(note.id)).toLocaleString("ko-KR", {
                           year: "numeric",
                           month: "2-digit",
@@ -324,7 +346,7 @@ export default function PDFViewer({
                           hour12: false,
                         })}
                       </div>
-                      <div className="whitespace-pre-line break-words">
+                      <div className="whitespace-pre-line break-words text-gray-900 dark:text-white">
                         {note.text}
                       </div>
                     </div>
@@ -334,13 +356,45 @@ export default function PDFViewer({
           </Document>
         </div>
       </div>
+      <div className="lg:w-96 shrink-0 border border-blue-100 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="font-bold text-gray-900 dark:text-white">
+            추출된 텍스트
+          </h2>
+          <button
+            onClick={handleExtractText}
+            disabled={!pdfFile || isLoading}
+            className="px-4 py-2 bg-green-500 text-white rounded disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center gap-2"
+          >
+            텍스트 추출하기
+          </button>
+        </div>
+        <div className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-y-auto h-[calc(100vh-12rem)] scrollbar-custom">
+          {isLoading ? (
+            <div className="space-y-3">
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
+            </div>
+          ) : (
+            <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-white">
+              {extractedText[currentPage]}
+            </pre>
+          )}
+        </div>
+      </div>
       {selectedNote && (
         <div
           className="fixed inset-0 bg-black z-50 cursor-default bg-opacity-50 flex items-center justify-center"
           onClick={() => setSelectedNote(null)}
         >
           <div
-            className="bg-white dark:bg-gray-800 p-4 rounded-lg w-96"
+            className="bg-white dark:bg-gray-800 p-4 rounded-lg w-96 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">
@@ -349,55 +403,30 @@ export default function PDFViewer({
             <textarea
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
-              className="w-full h-32 p-2 border rounded mb-4 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full h-32 p-2 border dark:border-gray-700 rounded mb-4 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
               placeholder="메모를 입력하세요..."
               autoFocus
             />
             <div className="flex justify-end gap-2">
               <button
                 onClick={handleNoteDelete}
-                className="px-4 py-2 bg-red-500 text-white rounded"
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
               >
                 삭제
               </button>
               <button
                 onClick={() => setSelectedNote(null)}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded"
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded transition-colors"
               >
                 취소
               </button>
               <button
                 onClick={handleNoteSave}
-                className="px-4 py-2 bg-blue-500 text-white rounded"
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
               >
                 저장
               </button>
             </div>
-          </div>
-        </div>
-      )}
-      {extractedText && Object.keys(extractedText).length > 0 && (
-        <div className="w-96 shrink-0 border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
-          <h2 className="font-bold mb-4 text-gray-900 dark:text-white">
-            추출된 텍스트
-          </h2>
-          <div className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-y-auto h-[calc(100vh-12rem)]">
-            {isLoading ? (
-              <div className="space-y-3">
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
-              </div>
-            ) : (
-              <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-white">
-                {extractedText[currentPage]}
-              </pre>
-            )}
           </div>
         </div>
       )}
