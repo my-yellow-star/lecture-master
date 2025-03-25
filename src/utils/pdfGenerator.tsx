@@ -1,6 +1,6 @@
 import { PDFDocument as PDFLibDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
-import { Note } from "@/types";
+import { Note } from "@/types/auth";
 
 // 텍스트를 지정된 너비에 맞게 줄바꿈하는 함수
 const wrapText = (
