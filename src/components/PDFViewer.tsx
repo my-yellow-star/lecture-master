@@ -154,7 +154,7 @@ export default function PDFViewer({
 
   return (
     <div className="flex-1 flex gap-4 h-[calc(100vh-8rem)]">
-      <div className="w-48 shrink-0 border rounded-lg p-2 overflow-y-auto">
+      <div className="w-48 shrink-0 border dark:border-gray-700 rounded-lg p-2 overflow-y-auto bg-white dark:bg-gray-800">
         <Document
           file={pdfUrl}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -165,8 +165,8 @@ export default function PDFViewer({
               key={`page_${index + 1}`}
               className={`cursor-pointer border rounded p-1 ${
                 currentPage === index + 1
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-gray-200"
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                  : "border-gray-200 dark:border-gray-700"
               } relative`}
               onClick={() => onPageChange(index + 1)}
             >
@@ -177,7 +177,7 @@ export default function PDFViewer({
                 renderAnnotationLayer={false}
               />
               {notes.filter((note) => note.page === index + 1).length > 0 && (
-                <div className="absolute bottom-1 right-1 bg-yellow-300 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                <div className="absolute bottom-1 right-1 bg-yellow-300 dark:bg-yellow-500 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                   {notes.filter((note) => note.page === index + 1).length}
                 </div>
               )}
@@ -185,17 +185,17 @@ export default function PDFViewer({
           ))}
         </Document>
       </div>
-      <div className="flex-1 border rounded-lg p-4">
+      <div className="flex-1 border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage <= 1 || isLoading}
-              className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300"
+              className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300 dark:disabled:bg-gray-600"
             >
               이전
             </button>
-            <span className="mx-2">
+            <span className="mx-2 text-gray-900 dark:text-white">
               페이지{" "}
               <input
                 type="number"
@@ -209,14 +209,14 @@ export default function PDFViewer({
                   }
                 }}
                 disabled={isLoading}
-                className="w-16 px-2 py-1 border rounded text-center disabled:bg-gray-100"
+                className="w-16 px-2 py-1 border rounded text-center disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
               / {totalPages}
             </span>
             <button
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage >= totalPages || isLoading}
-              className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300"
+              className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300 dark:disabled:bg-gray-600"
             >
               다음
             </button>
@@ -234,7 +234,7 @@ export default function PDFViewer({
               <button
                 onClick={handleSavePDF}
                 disabled={isSaving}
-                className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300 flex items-center gap-2"
+                className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center gap-2"
               >
                 {isSaving ? (
                   <>
@@ -252,7 +252,7 @@ export default function PDFViewer({
           <Document
             file={pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
-            className="flex flex-col border rounded-lg items-center bg-gray-50"
+            className="flex flex-col border rounded-lg items-center bg-gray-50 dark:bg-gray-900"
             loading={
               <div className="flex justify-center items-center h-full">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -340,14 +340,16 @@ export default function PDFViewer({
           onClick={() => setSelectedNote(null)}
         >
           <div
-            className="bg-white p-4 rounded-lg w-96"
+            className="bg-white dark:bg-gray-800 p-4 rounded-lg w-96"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold mb-4">메모 작성</h3>
+            <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">
+              메모 작성
+            </h3>
             <textarea
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
-              className="w-full h-32 p-2 border rounded mb-4"
+              className="w-full h-32 p-2 border rounded mb-4 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               placeholder="메모를 입력하세요..."
               autoFocus
             />
@@ -360,7 +362,7 @@ export default function PDFViewer({
               </button>
               <button
                 onClick={() => setSelectedNote(null)}
-                className="px-4 py-2 bg-gray-200 rounded"
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded"
               >
                 취소
               </button>
@@ -375,22 +377,24 @@ export default function PDFViewer({
         </div>
       )}
       {extractedText && Object.keys(extractedText).length > 0 && (
-        <div className="w-96 shrink-0 border rounded-lg p-4">
-          <h2 className="font-bold mb-4">추출된 텍스트</h2>
-          <div className="whitespace-pre-wrap bg-gray-50 p-4 rounded-lg overflow-y-auto h-[calc(100vh-12rem)]">
+        <div className="w-96 shrink-0 border dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800">
+          <h2 className="font-bold mb-4 text-gray-900 dark:text-white">
+            추출된 텍스트
+          </h2>
+          <div className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 p-4 rounded-lg overflow-y-auto h-[calc(100vh-12rem)]">
             {isLoading ? (
               <div className="space-y-3">
-                <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-5/6"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-4/6"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-5/6"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-3/6"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-4/6"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-5/6"></div>
-                <div className="h-4 bg-gray-200 rounded animate-pulse w-3/6"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
               </div>
             ) : (
-              <pre className="whitespace-pre-wrap text-sm">
+              <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-white">
                 {extractedText[currentPage]}
               </pre>
             )}
