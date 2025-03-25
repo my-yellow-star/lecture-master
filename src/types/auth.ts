@@ -1,3 +1,5 @@
+import { Timestamp } from "firebase/firestore";
+
 export interface User {
   id: string;
   email: string;
@@ -11,8 +13,8 @@ export interface FileItem {
   type: "file" | "folder";
   parentId: string | null;
   userId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | Timestamp;
+  updatedAt: Date | Timestamp;
   fileUrl?: string;
   fileSize?: number;
   fileType?: string;

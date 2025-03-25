@@ -88,13 +88,79 @@ export const deleteFile = async (fileId: string, userId: string) => {
       throw new Error("Unauthorized");
     }
 
+    // 폴더인 경우 하위 파일들도 모두 삭제
+    if (fileData.type === "folder") {
+      const subFiles = await getFiles(fileId, userId);
+      for (const subFile of subFiles) {
+        await deleteFile(subFile.id, userId);
+      }
+    }
+
+    // 파일인 경우 스토리지에서도 삭제
     if (fileData.type === "file" && fileData.fileUrl) {
-      const storageRef = ref(storage, fileData.fileUrl);
-      await deleteObject(storageRef);
+      const fileUrl = fileData.fileUrl;
+      const fileRef = ref(storage, fileUrl);
+      await deleteObject(fileRef);
     }
 
     await deleteDoc(fileRef);
   }
+};
+
+export const moveFile = async (
+  fileId: string,
+  targetFolderId: string | null,
+  userId: string
+) => {
+  const fileRef = doc(db, "files", fileId);
+  const fileDoc = await getDoc(fileRef);
+
+  if (fileDoc.exists()) {
+    const fileData = fileDoc.data() as FileItem;
+    if (fileData.userId !== userId) {
+      throw new Error("Unauthorized");
+    }
+
+    await updateDoc(fileRef, {
+      parentId: targetFolderId,
+      updatedAt: new Date(),
+    });
+  }
+};
+
+export const getFileById = async (fileId: string, userId: string) => {
+  const fileRef = doc(db, "files", fileId);
+  const fileDoc = await getDoc(fileRef);
+
+  if (fileDoc.exists()) {
+    const fileData = fileDoc.data() as FileItem;
+    if (fileData.userId !== userId) {
+      throw new Error("Unauthorized");
+    }
+    return { ...fileData, id: fileDoc.id };
+  }
+  return null;
+};
+
+export const getParentFolder = async (fileId: string, userId: string) => {
+  // fileId를 기준으로 부모 폴더를 조회
+  const fileRef = doc(db, "files", fileId);
+  const fileDoc = await getDoc(fileRef);
+  if (fileDoc.exists()) {
+    const fileData = fileDoc.data() as FileItem;
+    if (fileData.userId !== userId) {
+      throw new Error("Unauthorized");
+    }
+    const parentId = fileData.parentId;
+    if (parentId) {
+      const parentRef = doc(db, "files", parentId);
+      const parentDoc = await getDoc(parentRef);
+      const parentData = parentDoc.data() as FileItem;
+      return { ...parentData, id: parentDoc.id };
+    }
+    return null;
+  }
+  return null;
 };
 
 // 메모 관련 함수들
