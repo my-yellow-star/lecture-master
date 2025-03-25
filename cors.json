@@ -1,6 +1,6 @@
 [
   {
-    "origin": ["http://localhost:3001"],
+    "origin": ["http://localhost:3001", "https://lecture-master.vercel.app"],
     "method": ["GET", "POST", "PUT", "DELETE"],
     "maxAgeSeconds": 3600
   }
