@@ -3,7 +3,7 @@
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Note } from "@/types";
 import { savePDF } from "@/utils/pdfGenerator";
 import { extractText } from "@/utils/textExtractor";
@@ -47,6 +47,33 @@ export default function PDFViewer({
   const [isModalEditing, setIsModalEditing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<"notes" | "text">("notes");
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isModalEditing || isDragging || editingNoteId) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        if (currentPage > 1) {
+          onPageChange(currentPage - 1);
+        }
+      } else if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        if (currentPage < totalPages) {
+          onPageChange(currentPage + 1);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    currentPage,
+    totalPages,
+    onPageChange,
+    isModalEditing,
+    isDragging,
+    editingNoteId,
+  ]);
 
   const handleExtractText = async () => {
     if (!confirm("텍스트를 추출하시겠습니까?")) return;
