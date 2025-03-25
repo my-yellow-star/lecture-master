@@ -37,6 +37,10 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+button {
+  cursor: pointer;
+}
+
 /* 스크롤바 스타일링 */
 .scrollbar-custom::-webkit-scrollbar {
   width: 6px;

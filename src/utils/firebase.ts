@@ -166,7 +166,7 @@ export const getParentFolder = async (fileId: string, userId: string) => {
 // 메모 관련 함수들
 export const createNote = async (
   noteData: Omit<Note, "id" | "createdAt" | "updatedAt">
-) => {
+): Promise<Note> => {
   const note: Omit<Note, "id"> = {
     ...noteData,
     createdAt: new Date(),
@@ -194,6 +194,8 @@ export const getNotes = async (fileId: string, userId: string) => {
 export const updateNote = async (
   noteId: string,
   text: string,
+  x: number,
+  y: number,
   userId: string
 ) => {
   const noteRef = doc(db, "notes", noteId);
@@ -207,6 +209,8 @@ export const updateNote = async (
 
     await updateDoc(noteRef, {
       text,
+      x,
+      y,
       updatedAt: new Date(),
     });
   }

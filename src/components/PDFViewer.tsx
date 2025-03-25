@@ -4,9 +4,10 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { useState, useRef, useEffect } from "react";
-import { Note } from "@/types";
 import { savePDF } from "@/utils/pdfGenerator";
-import { extractText } from "@/utils/textExtractor";
+import { createNote, getNotes, updateNote, deleteNote } from "@/utils/firebase";
+import { useSession } from "next-auth/react";
+import { Note, NoteInput } from "@/types/auth";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -19,6 +20,7 @@ interface PDFViewerProps {
   onPageChange: (newPage: number) => void;
   fileName: string;
   pdfFile: File | null;
+  fileId: string;
 }
 
 export default function PDFViewer({
@@ -29,8 +31,9 @@ export default function PDFViewer({
   onDocumentLoadSuccess,
   onPageChange,
   fileName,
-  pdfFile,
+  fileId,
 }: PDFViewerProps) {
+  const { data: session } = useSession();
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
@@ -39,14 +42,13 @@ export default function PDFViewer({
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
   const [wasDragging, setWasDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [extractedText, setExtractedText] = useState<{ [key: number]: string }>(
-    {}
-  );
-  const [isLoading, setIsLoading] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isModalEditing, setIsModalEditing] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const shouldUpdateListRef = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<"notes" | "text">("notes");
+  const updateTimeoutRef = useRef<NodeJS.Timeout>(null);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -75,41 +77,113 @@ export default function PDFViewer({
     editingNoteId,
   ]);
 
-  const handleExtractText = async () => {
-    if (!confirm("텍스트를 추출하시겠습니까?")) return;
-    if (!pdfFile) {
-      console.warn("pdf file not exists");
-      return;
+  // 메모 데이터 로드
+  useEffect(() => {
+    const loadNotes = async () => {
+      if (!session?.user?.id || !fileId) return;
+      try {
+        const loadedNotes = await getNotes(fileId, session.user.id);
+        // createdAt 기준으로 오름차순 정렬
+        setNotes(
+          loadedNotes.sort((a, b) => {
+            const aTime =
+              a.createdAt instanceof Date
+                ? a.createdAt.getTime()
+                : a.createdAt.toDate().getTime();
+            const bTime =
+              b.createdAt instanceof Date
+                ? b.createdAt.getTime()
+                : b.createdAt.toDate().getTime();
+            return aTime - bTime;
+          })
+        );
+      } catch (error) {
+        console.error("메모 로드 중 오류 발생:", error);
+      }
+    };
+    loadNotes();
+  }, [fileId, session?.user.id]);
+
+  // 백그라운드 업데이트 처리
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const updateNotes = async () => {
+      if (shouldUpdateListRef.current.size === 0) return;
+      console.log("updateNotes, ", shouldUpdateListRef.current);
+
+      const updatePromises = Array.from(shouldUpdateListRef.current).map(
+        async (noteId) => {
+          const note = notes.find((n) => n.id === noteId);
+          if (!note) return;
+          try {
+            await updateNote(
+              noteId,
+              note.text,
+              note.x,
+              note.y,
+              session.user.id
+            );
+          } catch (error) {
+            console.error(`메모 ${noteId} 업데이트 중 오류 발생:`, error);
+          }
+        }
+      );
+
+      await Promise.all(updatePromises);
+      setLastSaved(new Date());
+      shouldUpdateListRef.current = new Set();
+    };
+
+    if (updateTimeoutRef.current) {
+      clearInterval(updateTimeoutRef.current);
     }
 
-    setIsLoading(true);
-    try {
-      const { numPages, pageTexts } = await extractText(pdfFile);
-      onDocumentLoadSuccess({ numPages });
-      setExtractedText(pageTexts);
-    } catch (error) {
-      console.error("텍스트 추출 중 오류가 발생했습니다:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    updateTimeoutRef.current = setInterval(updateNotes, 1000);
 
-  const handlePageClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearInterval(updateTimeoutRef.current);
+      }
+    };
+  }, [notes, session?.user?.id]);
+
+  const handlePageClick = async (event: React.MouseEvent<HTMLDivElement>) => {
     if (!isNoteMode || isDragging || wasDragging) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    const newNote: Note = {
-      id: Date.now().toString(),
+    const input: NoteInput = {
       page: currentPage,
       x: (x / rect.width) * 100,
       y: (y / rect.height) * 100,
       text: "",
     };
+    const newNote: Note = session?.user.id
+      ? await createNote({
+          fileId,
+          page: input.page,
+          x: input.x,
+          y: input.y,
+          text: noteText,
+          userId: session.user.id,
+        })
+      : {
+          id: new Date().getTime().toString(),
+          page: input.page,
+          x: input.x,
+          y: input.y,
+          text: "",
+          userId: "",
+          fileId: "",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
 
     setSelectedNote(newNote);
+    setNotes((prev) => [...prev, newNote]);
     setNoteText("");
     setIsModalEditing(true);
   };
@@ -130,68 +204,38 @@ export default function PDFViewer({
     setNoteText(note.text);
   };
 
-  const handleNoteSave = () => {
-    if (isModalEditing) {
-      if (!selectedNote) return;
+  const handleNoteDelete = async () => {
+    if (!session?.user?.id) return;
 
-      setNotes((prev) => {
-        const existingNoteIndex = prev.findIndex(
-          (note) => note.id === selectedNote.id
-        );
-        if (existingNoteIndex !== -1) {
-          // 기존 메모 업데이트
-          const newNotes = [...prev];
-          newNotes[existingNoteIndex] = {
-            ...newNotes[existingNoteIndex],
-            text: noteText,
-          };
-          return newNotes;
-        } else {
-          // 새로운 메모 추가
-          return [...prev, { ...selectedNote, text: noteText }];
-        }
-      });
+    if (isModalEditing) {
+      if (!selectedNote?.id) return;
+      try {
+        await deleteNote(selectedNote.id, session.user.id);
+        setNotes((prev) => prev.filter((note) => note.id !== selectedNote.id));
+        setLastSaved(new Date());
+      } catch (error) {
+        console.error("메모 삭제 중 오류 발생:", error);
+      }
       setSelectedNote(null);
       setNoteText("");
       setIsModalEditing(false);
     } else {
       if (!editingNoteId) return;
-
-      setNotes((prev) => {
-        const existingNoteIndex = prev.findIndex(
-          (note) => note.id === editingNoteId
-        );
-        if (existingNoteIndex !== -1) {
-          const newNotes = [...prev];
-          newNotes[existingNoteIndex] = {
-            ...newNotes[existingNoteIndex],
-            text: noteText,
-          };
-          return newNotes;
-        }
-        return prev;
-      });
-      setEditingNoteId(null);
-      setNoteText("");
-    }
-  };
-
-  const handleNoteDelete = () => {
-    if (isModalEditing) {
-      if (!selectedNote) return;
-      setNotes((prev) => prev.filter((note) => note.id !== selectedNote.id));
-      setSelectedNote(null);
-      setNoteText("");
-      setIsModalEditing(false);
-    } else {
-      if (!editingNoteId) return;
-      setNotes((prev) => prev.filter((note) => note.id !== editingNoteId));
+      try {
+        await deleteNote(editingNoteId, session.user.id);
+        setNotes((prev) => prev.filter((note) => note.id !== editingNoteId));
+        setLastSaved(new Date());
+      } catch (error) {
+        console.error("메모 삭제 중 오류 발생:", error);
+      }
       setEditingNoteId(null);
       setNoteText("");
     }
   };
 
   const handleSavePDF = async () => {
+    if (!confirm("현재 PDF 파일을 다운로드하시겠습니까?")) return;
+
     try {
       setIsSaving(true);
       await savePDF(notes, pdfUrl, fileName);
@@ -242,10 +286,48 @@ export default function PDFViewer({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (draggedNoteId) {
+      shouldUpdateListRef.current.add(draggedNoteId);
+    }
     setDraggedNoteId(null);
     setTimeout(() => {
       setWasDragging(false);
     }, 100);
+  };
+
+  const handleNoteConfirm = async () => {
+    if (!session?.user?.id) return;
+
+    if (isModalEditing) {
+      if (!selectedNote) return;
+
+      setNotes((prev) =>
+        prev.map((note) =>
+          note.id === selectedNote.id ? { ...note, text: noteText } : note
+        )
+      );
+      shouldUpdateListRef.current.add(selectedNote.id);
+
+      setSelectedNote(null);
+      setNoteText("");
+      setIsModalEditing(false);
+    } else {
+      if (!editingNoteId) return;
+
+      try {
+        setNotes((prev) =>
+          prev.map((note) =>
+            note.id === editingNoteId ? { ...note, text: noteText } : note
+          )
+        );
+        shouldUpdateListRef.current.add(editingNoteId);
+      } catch (error) {
+        console.error("메모 저장 중 오류 발생:", error);
+      }
+
+      setEditingNoteId(null);
+      setNoteText("");
+    }
   };
 
   return (
@@ -286,7 +368,7 @@ export default function PDFViewer({
           <div className="flex items-center gap-2">
             <button
               onClick={() => onPageChange(currentPage - 1)}
-              disabled={currentPage <= 1 || isLoading}
+              disabled={currentPage <= 1}
               className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300 dark:disabled:bg-gray-600"
             >
               이전
@@ -304,33 +386,29 @@ export default function PDFViewer({
                     onPageChange(newPage);
                   }
                 }}
-                disabled={isLoading}
                 className="w-16 px-2 py-1 border rounded text-center disabled:bg-gray-100 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               />
               / {totalPages}
             </span>
             <button
               onClick={() => onPageChange(currentPage + 1)}
-              disabled={currentPage >= totalPages || isLoading}
+              disabled={currentPage >= totalPages}
               className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300 dark:disabled:bg-gray-600"
             >
               다음
             </button>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsNoteMode(!isNoteMode)}
-              className={`px-4 py-2 rounded ${
-                isNoteMode ? "bg-red-500 text-white" : "bg-green-500 text-white"
-              }`}
-            >
-              {isNoteMode ? "메모 모드 종료" : "메모 작성"}
-            </button>
+            {lastSaved && (
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                마지막 저장: {lastSaved.toLocaleTimeString()}
+              </div>
+            )}
             {notes.length > 0 && (
               <button
                 onClick={handleSavePDF}
                 disabled={isSaving}
-                className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center gap-2"
+                className="px-4 py-2 border border-blue-500 text-blue-500 rounded disabled:border-gray-300 dark:disabled:border-gray-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center gap-2"
               >
                 {isSaving ? (
                   <>
@@ -342,6 +420,14 @@ export default function PDFViewer({
                 )}
               </button>
             )}
+            <button
+              onClick={() => setIsNoteMode(!isNoteMode)}
+              className={`px-4 py-2 rounded ${
+                isNoteMode ? "bg-red-500 text-white" : "bg-green-500 text-white"
+              }`}
+            >
+              {isNoteMode ? "편집 모드 종료" : "편집 모드"}
+            </button>
           </div>
         </div>
         <div className="overflow-y-auto h-[calc(100vh-12rem)]">
@@ -391,7 +477,7 @@ export default function PDFViewer({
                         ? "ring-2 ring-blue-500 animate-pulse scale-125"
                         : isNoteMode
                         ? "cursor-pointer"
-                        : "cursor-default"
+                        : ""
                     }`}
                     style={{
                       left: `${note.x}%`,
@@ -416,7 +502,10 @@ export default function PDFViewer({
                       className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-white dark:bg-gray-800 p-2 rounded shadow-lg border border-gray-200 dark:border-gray-700 text-sm w-64"
                     >
                       <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        {new Date(parseInt(note.id)).toLocaleString("ko-KR", {
+                        {(note.createdAt instanceof Date
+                          ? note.createdAt
+                          : note.createdAt.toDate()
+                        ).toLocaleString("ko-KR", {
                           year: "numeric",
                           month: "2-digit",
                           day: "2-digit",
@@ -447,7 +536,7 @@ export default function PDFViewer({
           >
             메모 목록
           </button>
-          <button
+          {/* <button
             onClick={() => {
               setActiveTab("text");
               if (!extractedText[currentPage]) {
@@ -461,7 +550,7 @@ export default function PDFViewer({
             }`}
           >
             텍스트 추출
-          </button>
+          </button> */}
         </div>
         <div className="h-[calc(100vh-12rem)]">
           {activeTab === "notes" ? (
@@ -479,7 +568,10 @@ export default function PDFViewer({
                           메모 #{index + 1}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(parseInt(note.id)).toLocaleString("ko-KR", {
+                          {(note.createdAt instanceof Date
+                            ? note.createdAt
+                            : note.createdAt.toDate()
+                          ).toLocaleString("ko-KR", {
                             year: "numeric",
                             month: "2-digit",
                             day: "2-digit",
@@ -515,10 +607,10 @@ export default function PDFViewer({
                               취소
                             </button>
                             <button
-                              onClick={handleNoteSave}
+                              onClick={handleNoteConfirm}
                               className="px-3 py-1 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
                             >
-                              저장
+                              확인
                             </button>
                           </div>
                         </div>
@@ -547,22 +639,16 @@ export default function PDFViewer({
               </p>
               <div className="flex-1 overflow-y-auto scrollbar-custom mt-2 ">
                 <div className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                  {isLoading ? (
-                    <div className="space-y-3">
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
-                    </div>
-                  ) : (
-                    <pre className="whitespace-pre-wrap text-sm text-gray-900 dark:text-white">
-                      {extractedText[currentPage]}
-                    </pre>
-                  )}
+                  <div className="space-y-3">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -609,10 +695,10 @@ export default function PDFViewer({
                 취소
               </button>
               <button
-                onClick={handleNoteSave}
+                onClick={handleNoteConfirm}
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
               >
-                저장
+                확인
               </button>
             </div>
           </div>

@@ -28,6 +28,13 @@ export interface Note {
   y: number;
   text: string;
   userId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | Timestamp;
+  updatedAt: Date | Timestamp;
+}
+
+export interface NoteInput {
+  page: number;
+  x: number;
+  y: number;
+  text: string;
 }

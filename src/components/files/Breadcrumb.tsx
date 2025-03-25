@@ -42,7 +42,7 @@ export default function Breadcrumb({
   }, [currentFolder]);
 
   return (
-    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-4">
+    <div className="flex items-center gap-2 text-lg text-gray-600 dark:text-gray-400 mb-4">
       <button
         onClick={() => onFolderClick(null)}
         className="hover:text-blue-500 dark:hover:text-blue-400 transition-colors"

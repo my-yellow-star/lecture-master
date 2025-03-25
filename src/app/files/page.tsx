@@ -140,18 +140,22 @@ export default function FilesPage() {
     <div className="container mx-auto p-4">
       <div className="flex flex-col h-[calc(100vh-2rem)]">
         <Header title="내 파일" />
-        <Breadcrumb
-          currentFolder={currentFolder}
-          onFolderClick={handleFolderClick}
-        />
-        <FileToolbar
-          currentFolderId={currentFolderId ?? null}
-          onFileUploaded={() => {
-            if (session.user?.id) {
-              getFiles(currentFolderId ?? null, session.user.id).then(setFiles);
-            }
-          }}
-        />
+        <div className="mt-4 flex items-center justify-between">
+          <Breadcrumb
+            currentFolder={currentFolder}
+            onFolderClick={handleFolderClick}
+          />
+          <FileToolbar
+            currentFolderId={currentFolderId ?? null}
+            onFileUploaded={() => {
+              if (session.user?.id) {
+                getFiles(currentFolderId ?? null, session.user.id).then(
+                  setFiles
+                );
+              }
+            }}
+          />
+        </div>
         <div className="flex-1 mt-4">
           <FileList
             files={files}

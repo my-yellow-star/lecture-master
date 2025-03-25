@@ -47,8 +47,8 @@ export default function FileToolbar({
   };
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex-1">
+    <div className="flex items-center gap-4 justify-end">
+      <div>
         {isCreatingFolder ? (
           <div className="flex items-center gap-2">
             <input

@@ -88,7 +88,7 @@ export default function EditorPage({
     <div className="container p-4">
       <div className="fixed left-0 right-0 top-0 bottom-0 bg-gray-100 dark:bg-gray-900 z-10">
         <div className="container mx-auto p-4 h-full flex flex-col">
-          <Header title="PDF 편집기" showBackButton />
+          <Header title="강의자료 도우미" showBackButton />
           {pdfUrl && (
             <Suspense
               fallback={
@@ -109,6 +109,7 @@ export default function EditorPage({
                 onPageChange={handlePageChange}
                 fileName={fileName}
                 pdfFile={null}
+                fileId={fileId}
               />
             </Suspense>
           )}
