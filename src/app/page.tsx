@@ -41,7 +41,7 @@ export default function LectureMaster() {
 
   return (
     <div className="container p-4">
-      <div className="fixed left-0 right-0 top-0 bottom-0 bg-white dark:bg-gray-900 z-10">
+      <div className="fixed left-0 right-0 top-0 bottom-0 bg-gray-100 dark:bg-gray-900 z-10">
         <div className="container mx-auto p-4 h-full flex flex-col">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -50,7 +50,7 @@ export default function LectureMaster() {
             <div className="flex items-center gap-4">
               <button
                 onClick={toggleTheme}
-                className="h-8 w-8 shrink-0 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                className="h-8 w-8 shrink-0 rounded-full bg-white dark:bg-gray-700 hover:border dark:hover:bg-gray-600 transition-colors"
               >
                 {theme === "light" ? "☀️" : "🌙"}
               </button>

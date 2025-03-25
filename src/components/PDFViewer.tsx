@@ -542,7 +542,10 @@ export default function PDFViewer({
             </div>
           ) : (
             <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-y-auto scrollbar-custom">
+              <p className="text-xs text-gray-400 dark:text-gray-500 pl-2">
+                * 파일에 따라 추출 정보가 정확하지 않을 수 있습니다.
+              </p>
+              <div className="flex-1 overflow-y-auto scrollbar-custom mt-2 ">
                 <div className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
                   {isLoading ? (
                     <div className="space-y-3">
