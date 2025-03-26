@@ -12,9 +12,10 @@ import {
 } from "firebase/firestore";
 import {
   ref,
-  uploadBytes,
+  uploadBytesResumable,
   getDownloadURL,
   deleteObject,
+  UploadTaskSnapshot,
 } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { FileItem, Note } from "@/types/auth";
@@ -41,10 +42,26 @@ export const createFolder = async (
 export const uploadFile = async (
   file: File,
   parentId: string | null,
-  userId: string
+  userId: string,
+  onProgress?: (progress: number) => void
 ) => {
   const storageRef = ref(storage, `files/${userId}/${file.name}`);
-  await uploadBytes(storageRef, file);
+
+  // 업로드 진행 상태 모니터링
+  const uploadTask = uploadBytesResumable(storageRef, file);
+  uploadTask.on(
+    "state_changed",
+    (snapshot: UploadTaskSnapshot) => {
+      const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+      onProgress?.(progress);
+    },
+    (error: Error) => {
+      console.error("Upload error:", error);
+      throw error;
+    }
+  );
+
+  await uploadTask;
   const fileUrl = await getDownloadURL(storageRef);
 
   const fileData: Omit<FileItem, "id"> = {
