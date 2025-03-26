@@ -107,27 +107,37 @@ export default function FileList({
             }`}
             onClick={() => onFolderClick(parentFolder?.id ?? null)}
             onDragOver={(e) =>
-              handleDragOver(e, {
-                id: parentFolder?.id ?? "root",
-                type: "folder",
-                name: "상위 폴더",
-                parentId: null,
-                userId: "",
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              })
+              handleDragOver(
+                e,
+                parentFolder
+                  ? {
+                      id: parentFolder.id,
+                      type: "folder",
+                      name: "상위 폴더",
+                      parentId: null,
+                      userId: "",
+                      createdAt: new Date(),
+                      updatedAt: new Date(),
+                    }
+                  : null
+              )
             }
             onDragLeave={handleDragLeave}
             onDrop={(e) =>
-              handleDrop(e, {
-                id: parentFolder?.id ?? "root",
-                type: "folder",
-                name: "상위 폴더",
-                parentId: null,
-                userId: "",
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              })
+              handleDrop(
+                e,
+                parentFolder
+                  ? {
+                      id: parentFolder.id,
+                      type: "folder",
+                      name: "상위 폴더",
+                      parentId: null,
+                      userId: "",
+                      createdAt: new Date(),
+                      updatedAt: new Date(),
+                    }
+                  : null
+              )
             }
           >
             <span className="text-2xl">📁</span>
