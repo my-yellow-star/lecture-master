@@ -40,6 +40,7 @@ export default function PDFViewer({
   const [noteText, setNoteText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
+  const [showTooltipId, setShowTooltipId] = useState<string | null>(null);
   const [wasDragging, setWasDragging] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -341,7 +342,7 @@ export default function PDFViewer({
           {Array.from(new Array(numPages || totalPages), (_, index) => (
             <div
               key={`page_${index + 1}`}
-              className={`cursor-pointer border border-gray-200 dark:border-gray-700 rounded p-1 ${
+              className={`cursor-pointer border rounded p-1 ${
                 currentPage === index + 1
                   ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                   : "border-gray-200 dark:border-gray-700"
@@ -462,6 +463,7 @@ export default function PDFViewer({
                 pageNumber={currentPage}
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
+                width={containerRef.current?.clientWidth}
               />
               {notes
                 .filter((note) => note.page === currentPage)
@@ -488,6 +490,12 @@ export default function PDFViewer({
                       e.preventDefault();
                       handleDragStart(e, note.id);
                     }}
+                    onMouseOver={() => {
+                      setShowTooltipId(note.id);
+                    }}
+                    onMouseOut={() => {
+                      setShowTooltipId(null);
+                    }}
                     onClick={(e) => {
                       if (!isDragging && isNoteMode) {
                         e.stopPropagation();
@@ -497,29 +505,13 @@ export default function PDFViewer({
                     }}
                   >
                     {index + 1}
-                    <div
-                      style={{ zIndex: 100 }}
-                      className="absolute left-full ml-2 top-1/2 -translate-y-1/2 hidden group-hover:block bg-white dark:bg-gray-800 p-2 rounded shadow-lg border border-gray-200 dark:border-gray-700 text-sm w-64"
-                    >
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        {(note.createdAt instanceof Date
-                          ? note.createdAt
-                          : note.createdAt.toDate()
-                        ).toLocaleString("ko-KR", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        })}
-                      </div>
-                      <div className="whitespace-pre-line break-words text-gray-900 dark:text-white">
-                        {note.text}
-                      </div>
-                    </div>
                   </div>
                 ))}
+              {showTooltipId && (
+                <NoteTooltip
+                  note={notes.find((note) => note.id === showTooltipId)}
+                />
+              )}
             </div>
           </Document>
         </div>
@@ -562,6 +554,12 @@ export default function PDFViewer({
                     <div
                       key={note.id}
                       className={`p-4 bg-gray-50 dark:bg-gray-900 rounded-lg`}
+                      onMouseOver={() => {
+                        setShowTooltipId(note.id);
+                      }}
+                      onMouseOut={() => {
+                        setShowTooltipId(null);
+                      }}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -616,7 +614,7 @@ export default function PDFViewer({
                         </div>
                       ) : (
                         <div
-                          className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 cursor-pointer"
+                          className="text-sm text-gray-600 dark:text-gray-300 line-clamp-2 hover:line-clamp-none cursor-pointer"
                           onClick={() => handleSidebarNoteClick(note)}
                         >
                           {note.text}
@@ -704,6 +702,36 @@ export default function PDFViewer({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function NoteTooltip({ note }: { note: Note | undefined }) {
+  if (!note) return <></>;
+  return (
+    <div
+      className="absolute left-full z-50 bg-white dark:bg-gray-800 p-2 rounded shadow-lg border border-gray-200 dark:border-gray-700 text-sm w-64"
+      style={{
+        left: `calc(${note.x}% + 32px)`,
+        top: `calc(${note.y}%)`,
+      }}
+    >
+      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+        {(note.createdAt instanceof Date
+          ? note.createdAt
+          : note.createdAt.toDate()
+        ).toLocaleString("ko-KR", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })}
+      </div>
+      <div className="whitespace-pre-line break-words text-gray-900 dark:text-white">
+        {note.text}
+      </div>
     </div>
   );
 }

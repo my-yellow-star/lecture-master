@@ -89,6 +89,10 @@ export default function EditorPage({
       <div className="fixed left-0 right-0 top-0 bottom-0 bg-gray-100 dark:bg-gray-900 z-10">
         <div className="container mx-auto p-4 h-full flex flex-col">
           <Header title="강의자료 도우미" showBackButton />
+          <p className="text-sm text-gray-500 mb-2">
+            Tip: 편집 모드에서는 강의 자료의 아무 곳이나 클릭해 메모를 추가할 수
+            있고, 메모를 드래그해서 위치를 옮길 수도 있습니다.
+          </p>
           {pdfUrl && (
             <Suspense
               fallback={

@@ -156,6 +156,9 @@ export default function FilesPage() {
             }}
           />
         </div>
+        <p className="text-sm text-gray-500">
+          Tip: 파일을 드래그해서 폴더에 넣을 수 있습니다.
+        </p>
         <div className="flex-1 mt-4">
           <FileList
             files={files}
