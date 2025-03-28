@@ -299,7 +299,7 @@ export const getAnalysis = async (
   pageNumber: number,
   userId: string
 ): Promise<AnalysisResult | null> => {
-  const analysisRef = collection(db, "analyses");
+  const analysisRef = collection(db, "analysis");
   const q = query(
     analysisRef,
     where("fileId", "==", fileId),
