@@ -246,3 +246,134 @@ export const deleteNote = async (noteId: string, userId: string) => {
     await deleteDoc(noteRef);
   }
 };
+
+export interface AnalysisResult {
+  id: string;
+  fileId: string;
+  pageNumber: number;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string;
+}
+
+export const saveAnalysis = async (
+  fileId: string,
+  pageNumber: number,
+  content: string,
+  userId: string
+): Promise<AnalysisResult> => {
+  const analysisRef = collection(db, "analyses");
+  const newAnalysis = {
+    fileId,
+    pageNumber,
+    content,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    userId,
+  };
+
+  const docRef = await addDoc(analysisRef, newAnalysis);
+  return {
+    id: docRef.id,
+    ...newAnalysis,
+  };
+};
+
+export const getAnalysis = async (
+  fileId: string,
+  pageNumber: number,
+  userId: string
+): Promise<AnalysisResult | null> => {
+  const analysisRef = collection(db, "analyses");
+  const q = query(
+    analysisRef,
+    where("fileId", "==", fileId),
+    where("pageNumber", "==", pageNumber),
+    where("userId", "==", userId)
+  );
+
+  const querySnapshot = await getDocs(q);
+  if (querySnapshot.empty) {
+    return null;
+  }
+
+  const doc = querySnapshot.docs[0];
+  return {
+    id: doc.id,
+    ...doc.data(),
+    createdAt: doc.data().createdAt.toDate(),
+    updatedAt: doc.data().updatedAt.toDate(),
+  } as AnalysisResult;
+};
+
+export interface AIUsage {
+  id: string;
+  userId: string;
+  remainingQuota: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export const initializeAIUsage = async (userId: string): Promise<AIUsage> => {
+  const usageRef = collection(db, "aiUsage");
+  const newUsage = {
+    userId,
+    remainingQuota: 10,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const docRef = await addDoc(usageRef, newUsage);
+  return {
+    id: docRef.id,
+    ...newUsage,
+  };
+};
+
+export const getAIUsage = async (userId: string): Promise<AIUsage | null> => {
+  const usageRef = collection(db, "aiUsage");
+  const q = query(usageRef, where("userId", "==", userId));
+
+  const querySnapshot = await getDocs(q);
+  if (querySnapshot.empty) {
+    return null;
+  }
+
+  const doc = querySnapshot.docs[0];
+  return {
+    id: doc.id,
+    ...doc.data(),
+    createdAt: doc.data().createdAt.toDate(),
+    updatedAt: doc.data().updatedAt.toDate(),
+  } as AIUsage;
+};
+
+export const decrementAIUsage = async (userId: string): Promise<AIUsage> => {
+  const usageRef = collection(db, "aiUsage");
+  const q = query(usageRef, where("userId", "==", userId));
+  const querySnapshot = await getDocs(q);
+
+  if (querySnapshot.empty) {
+    return initializeAIUsage(userId);
+  }
+
+  const doc = querySnapshot.docs[0];
+  const currentUsage = doc.data() as AIUsage;
+
+  if (currentUsage.remainingQuota <= 0) {
+    throw new Error("AI 분석 사용량이 모두 소진되었습니다.");
+  }
+
+  await updateDoc(doc.ref, {
+    remainingQuota: currentUsage.remainingQuota - 1,
+    updatedAt: new Date(),
+  });
+
+  return {
+    ...currentUsage,
+    id: doc.id,
+    remainingQuota: currentUsage.remainingQuota - 1,
+    updatedAt: new Date(),
+  };
+};

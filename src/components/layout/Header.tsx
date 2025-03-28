@@ -4,6 +4,7 @@ import { useTheme } from "@/context/ThemeContext";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
+import { useAIUsage } from "@/context/AIUsageContext";
 
 interface HeaderProps {
   title: string;
@@ -13,6 +14,7 @@ interface HeaderProps {
 export default function Header({ title, showBackButton = false }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
+  const { aiUsage } = useAIUsage();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +55,16 @@ export default function Header({ title, showBackButton = false }: HeaderProps) {
         </h1>
       </div>
       <div className="flex items-center gap-4">
+        {session?.user && (
+          <div className="flex items-center gap-2 text-sm">
+            <div className="h-8 w-8 flex items-center justify-center rounded-full bg-purple-300 dark:bg-purple-600">
+              🔎
+            </div>
+            <span className="text-gray-600 dark:text-gray-400">
+              {aiUsage?.remainingQuota ?? 0}
+            </span>
+          </div>
+        )}
         <button
           onClick={toggleTheme}
           className="h-8 w-8 shrink-0 rounded-full bg-orange-50 hover:bg-orange-100 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"

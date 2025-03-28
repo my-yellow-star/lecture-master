@@ -5,9 +5,20 @@ import "react-pdf/dist/esm/Page/AnnotationLayer.css";
 import "react-pdf/dist/esm/Page/TextLayer.css";
 import { useState, useRef, useEffect } from "react";
 import { savePDF } from "@/utils/pdfGenerator";
-import { createNote, getNotes, updateNote, deleteNote } from "@/utils/firebase";
+import {
+  createNote,
+  getNotes,
+  updateNote,
+  deleteNote,
+  saveAnalysis,
+  getAnalysis,
+  AnalysisResult,
+} from "@/utils/firebase";
 import { useSession } from "next-auth/react";
 import { Note, NoteInput } from "@/types/auth";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { useAIUsage } from "@/context/AIUsageContext";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -34,6 +45,7 @@ export default function PDFViewer({
   fileId,
 }: PDFViewerProps) {
   const { data: session } = useSession();
+  const { decrementUsage } = useAIUsage();
   const [isNoteMode, setIsNoteMode] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
@@ -46,9 +58,20 @@ export default function PDFViewer({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isModalEditing, setIsModalEditing] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
+    null
+  );
+  const [allAnalysisResults, setAllAnalysisResults] = useState<
+    AnalysisResult[]
+  >([]);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
   const shouldUpdateListRef = useRef<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"notes" | "text">("notes");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [activeTab, setActiveTab] = useState<"notes" | "text" | "analysis">(
+    "notes"
+  );
   const updateTimeoutRef = useRef<NodeJS.Timeout>(null);
 
   useEffect(() => {
@@ -148,6 +171,46 @@ export default function PDFViewer({
       }
     };
   }, [notes, session?.user?.id]);
+
+  // 분석 결과 로드
+  useEffect(() => {
+    const loadAnalysis = async () => {
+      if (!session?.user?.id || !fileId) return;
+      try {
+        const analysis = await getAnalysis(
+          fileId,
+          currentPage,
+          session.user.id
+        );
+        setAnalysisResult(analysis);
+      } catch (error) {
+        console.error("분석 결과 로드 중 오류 발생:", error);
+      }
+    };
+    loadAnalysis();
+  }, [fileId, currentPage, session?.user?.id]);
+
+  // 전체 분석 결과 로드
+  useEffect(() => {
+    const loadAllAnalysis = async () => {
+      if (!session?.user?.id || !fileId) return;
+      try {
+        const analyses = await Promise.all(
+          Array.from({ length: totalPages }, (_, i) => i + 1).map(
+            (pageNumber) => getAnalysis(fileId, pageNumber, session.user.id)
+          )
+        );
+        setAllAnalysisResults(
+          analyses.filter(
+            (analysis): analysis is AnalysisResult => analysis !== null
+          )
+        );
+      } catch (error) {
+        console.error("전체 분석 결과 로드 중 오류 발생:", error);
+      }
+    };
+    loadAllAnalysis();
+  }, [fileId, totalPages, session?.user?.id]);
 
   const handlePageClick = async (event: React.MouseEvent<HTMLDivElement>) => {
     if (!isNoteMode || isDragging || wasDragging) return;
@@ -331,6 +394,82 @@ export default function PDFViewer({
     }
   };
 
+  const captureCurrentPage = async () => {
+    if (!canvasRef.current) return null;
+
+    // 캔버스를 이미지로 변환
+    return canvasRef.current.toDataURL("image/jpeg", 0.8);
+  };
+
+  const analyzeCurrentPage = async () => {
+    if (!session?.user?.id) return;
+
+    try {
+      setIsAnalyzing(true);
+      setAnalysisProgress(0);
+
+      // AI 사용량 감소
+      await decrementUsage();
+
+      // 프로그레스 바 시뮬레이션
+      const progressInterval = setInterval(() => {
+        setAnalysisProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 5;
+        });
+      }, 500);
+
+      const pageImage = await captureCurrentPage();
+      if (!pageImage) {
+        throw new Error("페이지 캡처 실패");
+      }
+
+      // ChatGPT API 호출
+      const response = await fetch("/api/analyze-pdf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          image: pageImage,
+          pageNumber: currentPage,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("분석 요청 실패");
+      }
+
+      const data = await response.json();
+
+      // 분석 결과 저장
+      const savedAnalysis = await saveAnalysis(
+        fileId,
+        currentPage,
+        data.analysis,
+        session.user.id
+      );
+
+      setAnalysisResult(savedAnalysis);
+      setActiveTab("analysis");
+      clearInterval(progressInterval);
+      setAnalysisProgress(100);
+    } catch (error) {
+      console.error("페이지 분석 중 오류 발생:", error);
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert("페이지 분석 중 오류가 발생했습니다.");
+      }
+    } finally {
+      setIsAnalyzing(false);
+      setTimeout(() => setAnalysisProgress(0), 1000);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col lg:flex-row gap-4 h-[calc(100vh-8rem)]">
       <div className="lg:w-48 shrink-0 border border-gray-200 dark:border-gray-700 rounded-lg p-2 overflow-y-auto bg-white dark:bg-gray-800 scrollbar-custom">
@@ -355,11 +494,20 @@ export default function PDFViewer({
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
               />
-              {notes.filter((note) => note.page === index + 1).length > 0 && (
-                <div className="absolute bottom-1 right-1 bg-yellow-300 dark:bg-yellow-500 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                  {notes.filter((note) => note.page === index + 1).length}
-                </div>
-              )}
+              <div className="absolute bottom-1 right-1 flex items-center gap-1">
+                {allAnalysisResults.some(
+                  (analysis) => analysis.pageNumber === index + 1
+                ) && (
+                  <div className="bg-purple-300 dark:bg-purple-500 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                    🔎
+                  </div>
+                )}
+                {notes.filter((note) => note.page === index + 1).length > 0 && (
+                  <div className="bg-yellow-300 dark:bg-yellow-500 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                    {notes.filter((note) => note.page === index + 1).length}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </Document>
@@ -464,6 +612,7 @@ export default function PDFViewer({
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
                 width={containerRef.current?.clientWidth}
+                canvasRef={canvasRef}
               />
               {notes
                 .filter((note) => note.page === currentPage)
@@ -528,21 +677,16 @@ export default function PDFViewer({
           >
             메모 목록
           </button>
-          {/* <button
-            onClick={() => {
-              setActiveTab("text");
-              if (!extractedText[currentPage]) {
-                handleExtractText();
-              }
-            }}
+          <button
+            onClick={() => setActiveTab("analysis")}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
-              activeTab === "text"
-                ? "border-blue-500 text-blue-600 dark:text-blue-400"
+              activeTab === "analysis"
+                ? "border-purple-500 text-purple-600 dark:text-purple-400"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
             }`}
           >
-            텍스트 추출
-          </button> */}
+            🔎 AI 분석
+          </button>
         </div>
         <div className="h-[calc(100vh-12rem)]">
           {activeTab === "notes" ? (
@@ -630,27 +774,56 @@ export default function PDFViewer({
                 )}
               </div>
             </div>
-          ) : (
+          ) : activeTab === "analysis" ? (
             <div className="flex flex-col h-full">
-              <p className="text-xs text-gray-400 dark:text-gray-500 pl-2">
-                * 파일에 따라 추출 정보가 정확하지 않을 수 있습니다.
-              </p>
-              <div className="flex-1 overflow-y-auto scrollbar-custom mt-2 ">
-                <div className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
-                  <div className="space-y-3">
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-4/6"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-5/6"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-3/6"></div>
-                  </div>
+              <button
+                onClick={analyzeCurrentPage}
+                disabled={isAnalyzing}
+                className="w-full px-4 py-2 bg-purple-500 text-white rounded disabled:bg-gray-300 dark:disabled:bg-gray-600 flex items-center justify-center gap-2 mb-4"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    분석 중...
+                  </>
+                ) : analysisResult ? (
+                  "다시 분석하기"
+                ) : (
+                  "현재 페이지 분석하기"
+                )}
+              </button>
+              {isAnalyzing && (
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-4">
+                  <div
+                    className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${analysisProgress}%` }}
+                  ></div>
                 </div>
+              )}
+              <div className="flex-1 overflow-y-auto scrollbar-custom">
+                {analysisResult ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                        분석 시간:{" "}
+                        {analysisResult.createdAt.toLocaleString("ko-KR")}
+                      </div>
+                      <div className="prose dark:prose-invert max-w-none">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {analysisResult.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    AI 분석 결과가 없습니다. &quot;현재 페이지 분석하기&quot;
+                    버튼을 클릭하여 현재 페이지를 분석해보세요.
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
       {selectedNote && isModalEditing && (

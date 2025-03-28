@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { AIUsageProvider } from "@/context/AIUsageContext";
 import SessionProvider from "@/components/providers/SessionProvider";
 import { Toaster } from "react-hot-toast";
 
@@ -18,14 +19,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <body className={inter.className}>
-        <SessionProvider>
-          <ThemeProvider>
-            {children}
-            <Toaster position="top-right" />
-          </ThemeProvider>
-        </SessionProvider>
+        <ThemeProvider>
+          <SessionProvider>
+            <AIUsageProvider>
+              {children}
+              <Toaster position="top-right" />
+            </AIUsageProvider>
+          </SessionProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
