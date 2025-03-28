@@ -449,7 +449,7 @@ export default function PDFViewer({
       const savedAnalysis = await saveAnalysis(
         fileId,
         currentPage,
-        data.analysis,
+        data,
         session.user.id
       );
 
@@ -802,18 +802,121 @@ export default function PDFViewer({
               )}
               <div className="flex-1 overflow-y-auto scrollbar-custom">
                 {analysisResult ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        분석 시간:{" "}
-                        {analysisResult.createdAt.toLocaleString("ko-KR")}
+                  <div className="space-y-6">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      분석 시간:{" "}
+                      {analysisResult.createdAt.toLocaleString("ko-KR")}
+                    </div>
+
+                    {/* 핵심 요약 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
+                      <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <span className="text-yellow-500">✏️</span>
+                          강의 요약
+                        </h3>
                       </div>
-                      <div className="prose dark:prose-invert max-w-none">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {analysisResult.content}
-                        </ReactMarkdown>
+                      <div className="p-4">
+                        <div className="prose dark:prose-invert max-w-none text-sm">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {analysisResult.content.core_summary}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </div>
+
+                    {/* 쉬운 설명 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
+                      <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <span className="text-blue-500">💡</span>
+                          쉬운 설명
+                        </h3>
+                      </div>
+                      <div className="p-4">
+                        <div className="prose dark:prose-invert max-w-none text-sm">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {analysisResult.content.easy_explanation}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 비유와 예시 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
+                      <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <span className="text-green-500">🌱</span>
+                          비유와 예시
+                        </h3>
+                      </div>
+                      <div className="p-4">
+                        <div className="prose dark:prose-invert max-w-none text-sm">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {analysisResult.content.examples_or_analogies}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 시험 포인트 */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
+                      <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                          <span className="text-red-500">🎯</span>
+                          중요 포인트
+                        </h3>
+                      </div>
+                      <div className="p-4">
+                        <ul className="space-y-2 text-sm">
+                          {analysisResult.content.exam_points.map(
+                            (point, index) => (
+                              <li
+                                key={index}
+                                className="flex items-start gap-2"
+                              >
+                                <span className="text-red-500">•</span>
+                                <span className="text-gray-700 dark:text-gray-300">
+                                  {point}
+                                </span>
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* 전문 용어 설명 */}
+                    {analysisResult.content.term_definitions &&
+                      analysisResult.content.term_definitions.length > 0 && (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
+                          <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+                            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                              <span className="text-purple-500">📚</span>
+                              용어 설명
+                            </h3>
+                          </div>
+                          <div className="p-4">
+                            <div className="space-y-3">
+                              {analysisResult.content.term_definitions.map(
+                                (term, index) => (
+                                  <div
+                                    key={index}
+                                    className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3"
+                                  >
+                                    <div className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                                      {term.split(":")[0]}
+                                    </div>
+                                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                                      {term.split(":")[1]}
+                                    </div>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-gray-500 dark:text-gray-400">

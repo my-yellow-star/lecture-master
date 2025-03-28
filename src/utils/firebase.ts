@@ -251,34 +251,48 @@ export interface AnalysisResult {
   id: string;
   fileId: string;
   pageNumber: number;
-  content: string;
+  content: {
+    core_summary: string;
+    easy_explanation: string;
+    examples_or_analogies: string;
+    exam_points: string[];
+    term_definitions?: string[];
+  };
   createdAt: Date;
   updatedAt: Date;
   userId: string;
 }
 
-export const saveAnalysis = async (
+export async function saveAnalysis(
   fileId: string,
   pageNumber: number,
-  content: string,
+  content: {
+    core_summary: string;
+    easy_explanation: string;
+    examples_or_analogies: string;
+    exam_points: string[];
+    term_definitions?: string[];
+  },
   userId: string
-): Promise<AnalysisResult> => {
-  const analysisRef = collection(db, "analyses");
-  const newAnalysis = {
+): Promise<AnalysisResult> {
+  const analysisRef = collection(db, "analysis");
+  const now = new Date();
+
+  const analysisData = {
     fileId,
     pageNumber,
     content,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: now,
+    updatedAt: now,
     userId,
   };
 
-  const docRef = await addDoc(analysisRef, newAnalysis);
+  const docRef = await addDoc(analysisRef, analysisData);
   return {
     id: docRef.id,
-    ...newAnalysis,
+    ...analysisData,
   };
-};
+}
 
 export const getAnalysis = async (
   fileId: string,
